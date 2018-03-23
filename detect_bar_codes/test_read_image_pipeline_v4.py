@@ -17,7 +17,7 @@ from tensorflow.python import debug as tf_debug
 tf.logging.set_verbosity(tf.logging.INFO)
 
 n_epochs = 1000
-batch_size = 5
+batch_size = 6
 learning_rate = 0.0001 
 width=800
 height=600
@@ -113,8 +113,7 @@ def create_new_conv_layer(input_data,
     #print(tf.shape(out_layer))
     #out_layer = tf.Print(out_layer, data=[tf.shape(out_layer)], message="out_layer")
    
-    #out_layer += bias
-
+    out_layer += bias
     #out_layer = tf.nn.relu(out_layer)
 
     return out_layer
@@ -142,10 +141,13 @@ with tf.name_scope("dnn"):
     conv_layer_2 = create_new_conv_layer(max_pool_1, 64, 64, [10, 10], [1,1,1,1], name='layer2')
     #conv_layer_2 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
     
-    conv_layer_3 = create_new_conv_layer(conv_layer_2, 64, 64, [10, 10], [1,1,1,1], name='layer3')
+    conv_layer_3 = create_new_conv_layer(conv_layer_2, 64, 16, [5, 5], [1,1,1,1], name='layer3')
     #conv_layer_2 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
-    
-    max_pool_2 = tf.reduce_max(conv_layer_3, axis=[3])
+ 
+    conv_layer_4 = create_new_conv_layer(conv_layer_3, 16, 4, [5, 5], [1,1,1,1], name='layer4')
+    #conv_layer_2 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
+   
+    max_pool_2 = tf.reduce_max(conv_layer_4, axis=[3])
     #max_pool_2 = tf.Print(max_pool_2, data=[tf.shape(max_pool_2)], message="max_pool_2")
     max_pool_2 = tf.squeeze(max_pool_2)
     #max_pool_2 = tf.Print(max_pool_2, data=[tf.shape(max_pool_2)], message="max_pool_2")
@@ -153,7 +155,7 @@ with tf.name_scope("dnn"):
 
     result = tf.nn.sigmoid(max_pool_2)
     #result = tf.Print(result, data=[result], message="result")
-    diff_raw = result - y
+    diff_raw = y*5-result
     diff = tf.square(tf.abs(diff_raw)*10)
     #diff = tf.Print(diff, data=[diff, diff_raw, y], message="diff, diff_raw, y: ")
 
@@ -173,33 +175,26 @@ init = tf.global_variables_initializer()
 
 
 with tf.name_scope("to_image"):
-    image = result
+    
+    
+    image = tf.squeeze(result)
+    target = tf.squeeze(y)
     #image = tf.Print(image, data=[tf.shape(image)], message="image")
     
-    image_dim3 = tf.squeeze(image)
-    #image_dim3 = tf.Print(image_dim3, data=[tf.shape(image_dim3)], message="image_dim3")
-   
-    #image_dim2 = tf.reduce_sum(image_dim3, 2)
-    #image_dim2 = tf.Print(image_dim2, data=[tf.shape(image_dim2)], message="image_dim2")
-   
-    image_re_expand3 = tf.expand_dims(image_dim3, 2)
-    #image_re_expand3 = tf.Print(image_re_expand3, data=[tf.shape(image_re_expand3)], message="image_re_expand3")
-   
+    image_concat = tf.concat([target,image], 1)
+    
+    image_re_expand3 = tf.expand_dims(image_concat, 2)
     image_expand3_3 = tf.tile(image_re_expand3, [1, 1, 3])
-    #image_expand3_3 = tf.Print(image_expand3_3, data=[tf.shape(image_expand3_3)], message="image_expand3_3")
-   
-    #image = tf.Print(image, data=[tf.shape(image)], message="image")
-    #raw = tf.reshape(image_re_expand3, [width,height,3])
-    
-    #raw = tf.Print(raw, data=[tf.shape(raw)], message="raw")
-    
-    image_expand3_3 = image_expand3_3 * 256
-    raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
-    #raw_uint8 = tf.Print(raw_uint8, data=[tf.shape(raw_uint8)], message="raw_uint8")
-    img = tf.image.encode_jpeg(raw_uint8)
-    
-    output_file = tf.placeholder(tf.string, shape=(), name='output_file')
 
+    source_dim3 = tf.nn.max_pool(X, [1,10,10,1], strides=[1,10,10,1], padding="VALID")
+    source_dim3 = tf.squeeze(source_dim3)
+    image_concat2 = tf.concat([source_dim3,image_expand3_3], 1)
+    
+
+    image_expand3_3 = image_concat2 * 255
+    raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
+    img = tf.image.encode_jpeg(raw_uint8)
+    output_file = tf.placeholder(tf.string, shape=(), name='output_file')
     write_image = tf.write_file(output_file, img)
 
 
@@ -223,6 +218,7 @@ with tf.Session() as sess:
             pass
         print("New eval " +str(epoch) + " total loss " + str(total_loss))
         
+        count=0
         for file in glob.glob("/home/avila/DATA/DATA_REF_RESCALED/*.jpg"):
             file=file.replace("/home/avila/DATA/DATA_REF_RESCALED/", "")
             print(file)
@@ -231,3 +227,6 @@ with tf.Session() as sess:
             sess.run([write_image], feed_dict={is_training:False, 
                                                output_file:"/home/avila/RESULT/" + file, 
                                                handle:eval_handle})
+            count = count + 1
+            if count == 5:
+                break

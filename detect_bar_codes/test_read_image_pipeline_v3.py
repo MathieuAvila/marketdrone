@@ -37,7 +37,7 @@ def _parse_function(filename, label):
   label_string = tf.read_file(label)
   label_decoded = tf.image.decode_image(label_string)
   reshaped_label_decoded = tf.cast(label_decoded, tf.float32)
-  reshaped_label_decoded = reshaped_label_decoded / 256
+  reshaped_label_decoded = reshaped_label_decoded / 256 / 3
   
   #reshaped_label_decoded = tf.Print(reshaped_label_decoded, data=[tf.shape(reshaped_label_decoded)],
   #                                  message="reshaped_label_decoded")
@@ -113,8 +113,7 @@ def create_new_conv_layer(input_data,
     #print(tf.shape(out_layer))
     #out_layer = tf.Print(out_layer, data=[tf.shape(out_layer)], message="out_layer")
    
-    #out_layer += bias
-
+    out_layer += bias
     #out_layer = tf.nn.relu(out_layer)
 
     return out_layer
@@ -153,7 +152,7 @@ with tf.name_scope("dnn"):
 
     result = tf.nn.sigmoid(max_pool_2)
     #result = tf.Print(result, data=[result], message="result")
-    diff_raw = result - y
+    diff_raw = y*5-result
     diff = tf.square(tf.abs(diff_raw)*10)
     #diff = tf.Print(diff, data=[diff, diff_raw, y], message="diff, diff_raw, y: ")
 
@@ -193,7 +192,7 @@ with tf.name_scope("to_image"):
     
     #raw = tf.Print(raw, data=[tf.shape(raw)], message="raw")
     
-    image_expand3_3 = image_expand3_3 * 256
+    image_expand3_3 = image_expand3_3 * 255
     raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
     #raw_uint8 = tf.Print(raw_uint8, data=[tf.shape(raw_uint8)], message="raw_uint8")
     img = tf.image.encode_jpeg(raw_uint8)

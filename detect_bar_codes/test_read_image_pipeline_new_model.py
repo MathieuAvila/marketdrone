@@ -41,7 +41,7 @@ def _parse_function(filename, label):
   
   #reshaped_label_decoded = tf.Print(reshaped_label_decoded, data=[tf.shape(reshaped_label_decoded)],
   #                                  message="reshaped_label_decoded")
-  reshaped_label_decoded_reduced = tf.reduce_sum(reshaped_label_decoded, 2)
+  reshaped_label_decoded_reduced = tf.reduce_sum(reshaped_label_decoded, 2)/3
   #reshaped_label_decoded_reduced = tf.Print(reshaped_label_decoded_reduced, 
   #                                          data=[tf.shape(reshaped_label_decoded_reduced)],
   #                                          message="reshaped_label_decoded_reduced")
@@ -101,6 +101,7 @@ def create_new_conv_layer(input_data,
                           num_filters, 
                           filter_shape,
                           strides,
+                          activation,
                           name):
     # setup the filter input shape for tf.nn.conv_2d
     conv_filt_shape = [filter_shape[0], filter_shape[1], num_input_channels,  num_filters]
@@ -110,12 +111,9 @@ def create_new_conv_layer(input_data,
     bias = tf.Variable(tf.truncated_normal([num_filters]), name=name+'_b')
     # setup the convolutional layer operation
     out_layer = tf.nn.conv2d(input_data, weights, strides, padding='SAME')
-    #print(tf.shape(out_layer))
-    #out_layer = tf.Print(out_layer, data=[tf.shape(out_layer)], message="out_layer")
-   
-    #out_layer += bias
-
-    #out_layer = tf.nn.relu(out_layer)
+    out_layer += bias
+    if activation:
+        out_layer = tf.nn.relu(out_layer)
 
     return out_layer
 
@@ -129,9 +127,35 @@ with tf.name_scope("dnn"):
 
     X,y = iterator.get_next()
     #X = tf.Print(X, data=[tf.shape(X)], message="X")
-    #y = tf.Print(y, data=[tf.shape(y)], message="y")
+    #y = tf.Print(y, data=[y], message="y")
     
-    conv_layer_1 = create_new_conv_layer(X, 3, 64, [10, 10], [1, 1, 1, 1], name='layer1'),
+    #conv_layer_1 = create_new_conv_layer(X, 3, 64, [10, 10], [1, 1, 1, 1], name='layer1'),
+    #conv_layer_1 = tf.reduce_max(conv_layer_1, axis=[0])
+    #max_pool_1 = tf.nn.max_pool(conv_layer_1, [1,2,2,1], strides=[1,2,2,1], padding="VALID")
+    #conv_layer_2 = create_new_conv_layer(max_pool_1, 64, 32, [5, 5], [1,1,1,1], name='layer2')
+    #max_pool_2 = tf.nn.max_pool(conv_layer_2, [1,5,5,1], strides=[1,5,5,1], padding="VALID")
+    #conv_layer_3 = create_new_conv_layer(max_pool_2, 32, 8, [2, 2], [1,1,1,1], name='layer3')
+    #conv_layer_4 = create_new_conv_layer(conv_layer_3, 8, 1, [1, 1], [1,1,1,1], name='layer4')
+    ##conv_layer_5 = create_new_conv_layer(conv_layer_4, , 4, [1, 1], [1,1,1,1], name='layer5')
+    ##conv_layer_6 = create_new_conv_layer(conv_layer_5, 4, 2, [1, 1], [1,1,1,1], name='layer6')
+    ##conv_layer_7 = create_new_conv_layer(conv_layer_6, 2, 1, [1, 1], [1,1,1,1], name='layer7')
+    
+    ##max_pool_2 = tf.reduce_max(conv_layer_7, axis=[3])
+    ##max_pool_2 = tf.Print(max_pool_2, data=[tf.shape(max_pool_2)], message="max_pool_2")
+    #max_pool_3 = tf.squeeze(conv_layer_4)
+    ##max_pool_2 = tf.Print(max_pool_2, data=[tf.shape(max_pool_2)], message="max_pool_2")
+    ##max_pool_2 = tf.Print(max_pool_2, data=[max_pool_2], message="max_pool_2")
+
+    #result = tf.nn.sigmoid(max_pool_3)
+    
+    
+    
+    
+    
+    
+    
+    
+    conv_layer_1 = create_new_conv_layer(X, 3, 64, [10, 10], [1, 1, 1, 1], True, name='layer1'),
     #conv_layer_1 = tf.Print(conv_layer_1, data=[tf.shape(conv_layer_1)], message="conv_layer_1")
     conv_layer_1 = tf.reduce_max(conv_layer_1, axis=[0])
     #conv_layer_1 = tf.Print(conv_layer_1, data=[tf.shape(conv_layer_1)], message="conv_layer_1")
@@ -139,10 +163,10 @@ with tf.name_scope("dnn"):
     max_pool_1 = tf.nn.max_pool(conv_layer_1, [1,10,10,1], strides=[1,10,10,1], padding="VALID")
     #max_pool_1 = tf.Print(max_pool_1, data=[tf.shape(max_pool_1)], message="max_pool_1")
     
-    conv_layer_2 = create_new_conv_layer(max_pool_1, 64, 64, [10, 10], [1,1,1,1], name='layer2')
+    conv_layer_2 = create_new_conv_layer(max_pool_1, 64, 64, [10, 10], [1,1,1,1], True, name='layer2')
     #conv_layer_2 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
     
-    conv_layer_3 = create_new_conv_layer(conv_layer_2, 64, 64, [10, 10], [1,1,1,1], name='layer3')
+    conv_layer_3 = create_new_conv_layer(conv_layer_2, 64, 1, [10, 10], [1,1,1,1], True, name='layer3')
     #conv_layer_2 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
     
     max_pool_2 = tf.reduce_max(conv_layer_3, axis=[3])
@@ -152,16 +176,31 @@ with tf.name_scope("dnn"):
     #max_pool_2 = tf.Print(max_pool_2, data=[max_pool_2], message="max_pool_2")
 
     result = tf.nn.sigmoid(max_pool_2)
+
+    
+    
+    pixel_count = tf.reduce_prod(tf.shape(y))
+    pixel_count = tf.cast(pixel_count, tf.float32)
+    #pixel_count = tf.Print(pixel_count, data=[pixel_count], message="pixel_count ")
+    
+    sum_active = tf.reduce_sum(y) / (pixel_count)
+    #sum_active = tf.Print(sum_active, data=[sum_active], message="sum_active ")
+    
     #result = tf.Print(result, data=[result], message="result")
-    diff_raw = result - y
-    diff = tf.square(tf.abs(diff_raw)*10)
+    diff_positive = tf.reduce_sum(tf.abs((1.0-tf.multiply(result, y))*(1.0-sum_active)))
+    diff_negative = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)*(sum_active)))
+    diff_raw = diff_positive + diff_negative
+    
+    
+    diff = diff_raw #+ tf.square((1-abs(result-0.5))*10)
+    
     #diff = tf.Print(diff, data=[diff, diff_raw, y], message="diff, diff_raw, y: ")
 
 with tf.name_scope("loss"):
     #diff_linear = tf.reshape(diff, tf.TensorShape((batch_size*width*height*3)), name="diff_linear")
     #diff_linear = tf.Print(diff_linear, data=[tf.shape(diff_linear)], message="diff_linear")
-    loss = tf.reduce_sum(diff)
-    #loss = tf.Print(loss, data=[loss], message="loss")
+    loss = tf.reduce_sum(diff) + tf.reduce_max(y)
+    loss = tf.Print(loss, data=[loss, tf.reduce_max(y), sum_active, pixel_count, diff_positive, diff_negative], message="loss")
 
 
 with tf.name_scope("learn"):
@@ -193,7 +232,7 @@ with tf.name_scope("to_image"):
     
     #raw = tf.Print(raw, data=[tf.shape(raw)], message="raw")
     
-    image_expand3_3 = image_expand3_3 * 256
+    image_expand3_3 = image_expand3_3 * 255
     raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
     #raw_uint8 = tf.Print(raw_uint8, data=[tf.shape(raw_uint8)], message="raw_uint8")
     img = tf.image.encode_jpeg(raw_uint8)
@@ -218,6 +257,7 @@ with tf.Session() as sess:
             while True:
                 print("New train %s" % str(epoch))
                 val = sess.run([optimiser, loss], feed_dict={is_training:True, handle:training_handle})
+                print("Loss : " + str(val[1]))
                 total_loss = total_loss + val[1]
         except tf.errors.OutOfRangeError:
             pass
