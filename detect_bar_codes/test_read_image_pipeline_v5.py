@@ -163,25 +163,10 @@ with tf.name_scope("dnn"):
     #conv_layer_3 = tf.Print(conv_layer_3, data=[tf.reduce_min(conv_layer_3), tf.reduce_max(conv_layer_3)], message="conv_layer_3")
     #conv_layer_3 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
  
-    ###conv_layer_4 = create_new_conv_layer(conv_layer_3, 16, 4, [4, 4], [1,1,1,1], True, is_training, name='layer4')
-    ####conv_layer_2 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
-   
-    ####max_pool_2 = tf.reduce_max(conv_layer_4, axis=[3])
-    
-    
-    
-    
-    #max_pool_2 = tf.reduce_max(conv_layer_3, axis=[3])
     max_pool_2 = tf.squeeze(conv_layer_3)
     
     result = tf.nn.sigmoid(max_pool_2)
 
-    #result = tf.reshape(result, tf.shape(y) )
-  
-
-    #result = tf.Print(result, data=[tf.shape(result), tf.shape(y), tf.shape(max_pool_2)], message="result, y, max_pool_2 ")
-    
-    
     
     
     pixel_count = tf.reduce_prod(tf.shape(y))
@@ -203,20 +188,9 @@ with tf.name_scope("dnn"):
                                 ], message="")
 
 
-    #diff = tf.reduce_mean(result)
-
-
-
-    #result = tf.Print(result, data=[result], message="result")
-    #diff_raw = y-result
-    #diff = tf.abs(diff_raw)
-    #diff = tf.Print(diff, data=[tf.reduce_max(y),tf.reduce_min(y),tf.reduce_max(diff_raw)], message="diff, diff_raw, y: ")
-
+ 
 with tf.name_scope("loss"):
-    #diff_linear = tf.reshape(diff, tf.TensorShape((batch_size*width*height*3)), name="diff_linear")
-    #diff_linear = tf.Print(diff_linear, data=[tf.shape(diff_linear)], message="diff_linear")
     loss = tf.reduce_sum(diff)
-    #loss = tf.Print(loss, data=[loss], message="loss")
 
 
 with tf.name_scope("learn"):
@@ -224,7 +198,8 @@ with tf.name_scope("learn"):
     optimiser = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
 
 init = tf.global_variables_initializer()
-#saver = tf.train.Saver()
+
+saver = tf.train.Saver()
 
 
 with tf.name_scope("to_image"):
@@ -232,9 +207,10 @@ with tf.name_scope("to_image"):
     
         image = tf.squeeze(result)
         target = tf.squeeze(y)
-        image = tf.Print(image, data=[tf.shape(image), tf.shape(target), tf.shape(result), tf.shape(y)], message="image ")
-        
-        image_concat = tf.concat([target,image], 1)
+        #image = tf.Print(image, data=[tf.shape(image), tf.shape(target), tf.shape(result), tf.shape(y)], message="image ")
+        image_step = (tf.sign(image - 0.5)+1)/2
+
+        image_concat = tf.concat([target,image, image_step], 1)
         
         image_re_expand3 = tf.expand_dims(image_concat, 2)
         image_expand3_3 = tf.tile(image_re_expand3, [1, 1, 3])
@@ -249,41 +225,17 @@ with tf.name_scope("to_image"):
         img = tf.image.encode_jpeg(raw_uint8)
         output_file = tf.placeholder(tf.string, shape=(), name='output_file')
         write_image = tf.write_file(output_file, img)
-        
-        #write_image = image
     
-
-##y = tf.constant([ 
-    ##[ [1.,0,0],[1,0,0] ],
-    ##[ [1.,0,0],[1,0,0] ],  
-    ##[ [0.,0,0],[0,0,0] ]  
-    ##])
-##result = tf.constant([
-    ##[ [0.1,0.2,0], [0.3, 0.4,0] ], 
-    ##[ [0.0,0.0,0], [0.0,0.0,0] ],
-    ##[ [0.,0,0],[0,0,0] ]  
-    ##])
-
-
-##pixel_count = tf.reduce_prod(tf.shape(y))
-##pixel_count = tf.cast(pixel_count, tf.float32)
-##sum_active = tf.reduce_sum(y)
-##sum_inactive = pixel_count - sum_active
-##sum_active = tf.Print(sum_active, data=[pixel_count, sum_active, sum_inactive], message="pixel, active , inactive")
-
-##positive = tf.abs(y-tf.multiply(result, y))
-##diff_1 = tf.reduce_sum(positive)/sum_active
-    
-##reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)))
-##diff_0 = reduced_sum /sum_inactive
-
 with tf.Session() as sess:
 
-    #r = sess.run([diff_0, diff_1, positive])
-    #print(r)
-    #exit(0)
     
-    init.run()
+    #init.run()
+    try:
+        saver.restore(sess, "/home/avila/model.cpkt")
+        print("restored session")
+    except:       
+        print("start session from scratch")
+        init.run()
     
     training_handle = sess.run(iterator_train.string_handle())
     eval_handle = sess.run(iterator_eval.string_handle())
@@ -293,17 +245,19 @@ with tf.Session() as sess:
         sess.run(training_init_op)
         total_loss = 0
         try:
+            batch_count = 0
             while True:
-                print("New train %s" % str(epoch))
+                batch_count = batch_count + 1
+                print("New train epoch = %i, count = %i" % (epoch, batch_count))
                 val = sess.run([optimiser, loss], feed_dict={is_training:True, handle:training_handle})
                 total_loss = total_loss + val[1]
                 print("loss %f" % val[1])
-                #print("result " + str(val[2]))
-                
-                
                 
         except tf.errors.OutOfRangeError:
             pass
+        
+        saver.save(sess, "/home/avila/model.cpkt")
+                
         print("New eval " +str(epoch) + " total loss " + str(total_loss))
         
         count=0
