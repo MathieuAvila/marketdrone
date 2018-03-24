@@ -26,25 +26,23 @@ height=600
 # to a fixed shape.
 def _parse_function(filename, label):
 
-  filename = tf.Print(filename, data=[filename], message="filename")
+  #filename = tf.Print(filename, data=[filename], message="filename")
   image_string = tf.read_file(filename)
   image_decoded = tf.image.decode_image(image_string)
   reshaped_image_decoded = tf.cast(image_decoded, tf.float32)
-  reshaped_image_decoded = reshaped_image_decoded / 256
+  reshaped_image_decoded = reshaped_image_decoded / 255
   #reshaped_image_decoded = tf.Print(reshaped_image_decoded, data=[tf.shape(reshaped_image_decoded)], message="reshaped_image_decoded")
 
   #label = tf.Print(label, data=[label], message="label")
   label_string = tf.read_file(label)
   label_decoded = tf.image.decode_image(label_string)
   reshaped_label_decoded = tf.cast(label_decoded, tf.float32)
-  reshaped_label_decoded = reshaped_label_decoded / 255 / 3
+  reshaped_label_decoded = reshaped_label_decoded / 255
   
-  #reshaped_label_decoded = tf.Print(reshaped_label_decoded, data=[tf.shape(reshaped_label_decoded)],
-  #                                  message="reshaped_label_decoded")
-  reshaped_label_decoded_reduced = tf.reduce_sum(reshaped_label_decoded, 2)
-  reshaped_label_decoded_reduced = tf.Print(reshaped_label_decoded_reduced, 
-                                            data=[tf.reduce_min(reshaped_label_decoded_reduced), tf.reduce_max(reshaped_label_decoded_reduced)],
-                                            message="reshaped_label_decoded_reduced")
+  reshaped_label_decoded_reduced = tf.reduce_sum(reshaped_label_decoded, 2) / 3
+
+  #reshaped_label_decoded_reduced = tf.Print(reshaped_label_decoded_reduced, data=[tf.shape(reshaped_label_decoded_reduced)],
+  #                                  message="reshaped_label_decoded_reduced")
 
   return reshaped_image_decoded, reshaped_label_decoded_reduced
 
@@ -113,7 +111,7 @@ def create_new_conv_layer(input_data,
     conv_filt_shape = [filter_shape[0], filter_shape[1], num_input_channels,  num_filters]
 
     # initialise weights and bias for the filter
-    weights = tf.Variable(tf.truncated_normal(conv_filt_shape, stddev=1.0), name=name+'_W')
+    weights = tf.Variable(tf.truncated_normal(conv_filt_shape, stddev=0.1), name=name+'_W')
     bias = tf.Variable(tf.truncated_normal([num_filters]), name=name+'_b')
     # setup the convolutional layer operation
     out_layer = tf.nn.conv2d(input_data, weights, strides, padding='SAME')
@@ -145,11 +143,11 @@ with tf.name_scope("dnn"):
     #X = tf.Print(X, data=[tf.shape(X)], message="X")
     #y = tf.Print(y, data=[tf.shape(y)], message="y")
     
-    conv_layer_1 = create_new_conv_layer(X, 3, 128, [10, 10], [1, 1, 1, 1], False, is_training, name='layer1')
+    conv_layer_1 = create_new_conv_layer(X, 3, 128, [10, 10], [1, 1, 1, 1], True, is_training, name='layer1')
     #conv_layer_1 = tf.Print(conv_layer_1, data=[tf.reduce_min(conv_layer_1), tf.reduce_max(conv_layer_1)], message="conv_layer_1")
     #conv_layer_1_max = tf.reduce_max(conv_layer_1, axis=[0])
     
-    conv_layer_1_1 = create_new_conv_layer(conv_layer_1, 128, 128, [1, 1], [1, 1, 1, 1], False, is_training, name='layer1_max')
+    conv_layer_1_1 = create_new_conv_layer(conv_layer_1, 128, 128, [1, 1], [1, 1, 1, 1], True, is_training, name='layer1_max')
     #conv_layer_1_1 = tf.Print(conv_layer_1_1, data=[tf.reduce_min(conv_layer_1_1), tf.reduce_max(conv_layer_1_1)], message="conv_layer_1_1")
     #conv_layer_1 = tf.Print(conv_layer_1, data=[tf.shape(conv_layer_1)], message="conv_layer_1")
     
@@ -157,11 +155,11 @@ with tf.name_scope("dnn"):
     #max_pool_1 = tf.Print(max_pool_1, data=[tf.reduce_min(max_pool_1), tf.reduce_max(max_pool_1)], message="max_pool_1")
     #max_pool_1 = tf.Print(max_pool_1, data=[tf.shape(max_pool_1)], message="max_pool_1")
     
-    conv_layer_2 = create_new_conv_layer(max_pool_1, 128, 64, [4, 4], [1,1,1,1], False, is_training, name='layer2')
+    conv_layer_2 = create_new_conv_layer(max_pool_1, 128, 64, [4, 4], [1,1,1,1], True, is_training, name='layer2')
     #conv_layer_2 = tf.Print(conv_layer_2, data=[tf.reduce_min(conv_layer_2), tf.reduce_max(conv_layer_2)], message="conv_layer_2")
     #conv_layer_2 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
     
-    conv_layer_3 = create_new_conv_layer(conv_layer_2, 64, 1, [4, 4], [1,1,1,1], False, is_training, name='layer3')
+    conv_layer_3 = create_new_conv_layer(conv_layer_2, 64, 1, [4, 4], [1,1,1,1], True, is_training, name='layer3')
     #conv_layer_3 = tf.Print(conv_layer_3, data=[tf.reduce_min(conv_layer_3), tf.reduce_max(conv_layer_3)], message="conv_layer_3")
     #conv_layer_3 = tf.Print(conv_layer_2, data=[tf.shape(conv_layer_2)], message="conv_layer_2")
  
@@ -173,30 +171,41 @@ with tf.name_scope("dnn"):
     
     
     
-    
     #max_pool_2 = tf.reduce_max(conv_layer_3, axis=[3])
     max_pool_2 = tf.squeeze(conv_layer_3)
-        
+    
     result = tf.nn.sigmoid(max_pool_2)
+
+    #result = tf.reshape(result, tf.shape(y) )
+  
+
+    #result = tf.Print(result, data=[tf.shape(result), tf.shape(y), tf.shape(max_pool_2)], message="result, y, max_pool_2 ")
+    
+    
     
     
     pixel_count = tf.reduce_prod(tf.shape(y))
     pixel_count = tf.cast(pixel_count, tf.float32)
-    sum_active = tf.reduce_sum(y) / (pixel_count)
-    sum_inactive = 1.0 - sum_active
-    sum_active = tf.Print(sum_active, data=[pixel_count, sum_active, sum_inactive], message="pixel, active , inactive")
-    #result = tf.Print(result, data=[result], message="result")
-    diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(result, y)))*sum_inactive
+    sum_active = tf.reduce_sum(y)
+    sum_inactive = pixel_count - sum_active
+
+    sum_diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(result, y)))
+    diff_1 = sum_diff_1/sum_active
+    
     reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)))
-    diff_0 = reduced_sum * sum_active
+    diff_0 = reduced_sum /sum_inactive
     diff_raw = diff_1 + diff_0
     diff = diff_raw
-    diff = tf.Print(diff, data=[tf.reduce_min(max_pool_2), 
-                                tf.reduce_max(max_pool_2), 
-                                diff_1, 
-                                reduced_sum,
-                                diff_0
-                                ], message="min,max,diff_1, diff_0")
+    diff = tf.Print(diff, data=[pixel_count, tf.reduce_mean(result), tf.reduce_mean(y) ], message="")
+    diff = tf.Print(diff, data=[sum_active, sum_diff_1, diff_1
+                                ], message="")
+    diff = tf.Print(diff, data=[sum_inactive, reduced_sum, diff_0
+                                ], message="")
+
+
+    #diff = tf.reduce_mean(result)
+
+
 
     #result = tf.Print(result, data=[result], message="result")
     #diff_raw = y-result
@@ -221,29 +230,59 @@ init = tf.global_variables_initializer()
 with tf.name_scope("to_image"):
     
     
-    image = tf.squeeze(result)
-    target = tf.squeeze(y)
-    #image = tf.Print(image, data=[tf.shape(image)], message="image")
-    
-    image_concat = tf.concat([target,image], 1)
-    
-    image_re_expand3 = tf.expand_dims(image_concat, 2)
-    image_expand3_3 = tf.tile(image_re_expand3, [1, 1, 3])
+        image = tf.squeeze(result)
+        target = tf.squeeze(y)
+        image = tf.Print(image, data=[tf.shape(image), tf.shape(target), tf.shape(result), tf.shape(y)], message="image ")
+        
+        image_concat = tf.concat([target,image], 1)
+        
+        image_re_expand3 = tf.expand_dims(image_concat, 2)
+        image_expand3_3 = tf.tile(image_re_expand3, [1, 1, 3])
 
-    source_dim3 = tf.nn.max_pool(X, [1,10,10,1], strides=[1,10,10,1], padding="VALID")
-    source_dim3 = tf.squeeze(source_dim3)
-    image_concat2 = tf.concat([source_dim3,image_expand3_3], 1)
+        source_dim3 = tf.nn.max_pool(X, [1,10,10,1], strides=[1,10,10,1], padding="VALID")
+        source_dim3 = tf.squeeze(source_dim3)
+        image_concat2 = tf.concat([source_dim3,image_expand3_3], 1)
+        
+
+        image_expand3_3 = image_concat2 * 255
+        raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
+        img = tf.image.encode_jpeg(raw_uint8)
+        output_file = tf.placeholder(tf.string, shape=(), name='output_file')
+        write_image = tf.write_file(output_file, img)
+        
+        #write_image = image
     
 
-    image_expand3_3 = image_concat2 * 255
-    raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
-    img = tf.image.encode_jpeg(raw_uint8)
-    output_file = tf.placeholder(tf.string, shape=(), name='output_file')
-    write_image = tf.write_file(output_file, img)
+##y = tf.constant([ 
+    ##[ [1.,0,0],[1,0,0] ],
+    ##[ [1.,0,0],[1,0,0] ],  
+    ##[ [0.,0,0],[0,0,0] ]  
+    ##])
+##result = tf.constant([
+    ##[ [0.1,0.2,0], [0.3, 0.4,0] ], 
+    ##[ [0.0,0.0,0], [0.0,0.0,0] ],
+    ##[ [0.,0,0],[0,0,0] ]  
+    ##])
 
+
+##pixel_count = tf.reduce_prod(tf.shape(y))
+##pixel_count = tf.cast(pixel_count, tf.float32)
+##sum_active = tf.reduce_sum(y)
+##sum_inactive = pixel_count - sum_active
+##sum_active = tf.Print(sum_active, data=[pixel_count, sum_active, sum_inactive], message="pixel, active , inactive")
+
+##positive = tf.abs(y-tf.multiply(result, y))
+##diff_1 = tf.reduce_sum(positive)/sum_active
+    
+##reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)))
+##diff_0 = reduced_sum /sum_inactive
 
 with tf.Session() as sess:
 
+    #r = sess.run([diff_0, diff_1, positive])
+    #print(r)
+    #exit(0)
+    
     init.run()
     
     training_handle = sess.run(iterator_train.string_handle())
@@ -258,7 +297,10 @@ with tf.Session() as sess:
                 print("New train %s" % str(epoch))
                 val = sess.run([optimiser, loss], feed_dict={is_training:True, handle:training_handle})
                 total_loss = total_loss + val[1]
-                print("loss %i" % val[1])
+                print("loss %f" % val[1])
+                #print("result " + str(val[2]))
+                
+                
                 
         except tf.errors.OutOfRangeError:
             pass
@@ -270,9 +312,11 @@ with tf.Session() as sess:
             #print(file)
             eval_init_op = eval_op_from_file(file)
             sess.run(eval_init_op)        
-            sess.run([write_image], feed_dict={is_training:False, 
+            output = sess.run([write_image], feed_dict={is_training:True, 
                                                output_file:"/home/avila/RESULT/" + file, 
                                                handle:eval_handle})
+            #print("result " + str(output[0]))
+                
             count = count + 1
             if count == 5:
                 break
