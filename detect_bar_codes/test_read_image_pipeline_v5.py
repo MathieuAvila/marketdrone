@@ -208,7 +208,7 @@ with tf.name_scope("to_image"):
         image = tf.squeeze(result)
         target = tf.squeeze(y)
         #image = tf.Print(image, data=[tf.shape(image), tf.shape(target), tf.shape(result), tf.shape(y)], message="image ")
-        image_step = (tf.sign(image - 0.5)+1)/2
+        image_step = (tf.sign(image - 0.7)+1)/2
 
         image_concat = tf.concat([target,image, image_step], 1)
         
