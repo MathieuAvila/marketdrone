@@ -83,7 +83,7 @@ iterator_eval = tf.data.Iterator.from_structure(
 
 def eval_op_from_file(filename):
     image_sources_eval = ["/home/avila/DATA/DATA_REF_RESCALED/" + filename]
-    image_labels_eval = ["/home/avila/DATA/DATA_REF_LABEL_RESCALED/" + filename]
+    image_labels_eval = ["/home/avila/DATA/void_target.jpg"]
     dataset_eval = tf.data.Dataset.from_tensor_slices((image_sources_eval, image_labels_eval))
     dataset_eval = dataset_eval.map(_parse_function)
     dataset_eval = dataset_eval.batch(1)
@@ -167,30 +167,10 @@ with tf.name_scope("dnn"):
     
     result = tf.nn.sigmoid(max_pool_2)
 
-    
-    
-    pixel_count = tf.reduce_prod(tf.shape(y))
-    pixel_count = tf.cast(pixel_count, tf.float32)
-    sum_active = tf.reduce_sum(y)
-    sum_inactive = pixel_count - sum_active
-
-    sum_diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(result, y)))
-    diff_1 = sum_diff_1/sum_active
-    
-    reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)))
-    diff_0 = reduced_sum /sum_inactive
-    diff_raw = diff_1 + diff_0
-    diff = diff_raw
-    diff = tf.Print(diff, data=[pixel_count, tf.reduce_mean(result), tf.reduce_mean(y) ], message="")
-    diff = tf.Print(diff, data=[sum_active, sum_diff_1, diff_1
-                                ], message="")
-    diff = tf.Print(diff, data=[sum_inactive, reduced_sum, diff_0
-                                ], message="")
-
-
  
 with tf.name_scope("loss"):
-    loss = tf.reduce_sum(diff)
+    loss = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=result, name="loss")
+    #loss = tf.reduce_sum(diff)
 
 
 with tf.name_scope("learn"):
@@ -208,7 +188,7 @@ with tf.name_scope("to_image"):
         image = tf.squeeze(result)
         target = tf.squeeze(y)
         #image = tf.Print(image, data=[tf.shape(image), tf.shape(target), tf.shape(result), tf.shape(y)], message="image ")
-        image_step = (tf.sign(image - 0.7)+1)/2
+        image_step = (tf.sign(image - 0.9)+1)/2
 
         image_concat = tf.concat([target,image, image_step], 1)
         
@@ -225,13 +205,18 @@ with tf.name_scope("to_image"):
         img = tf.image.encode_jpeg(raw_uint8)
         output_file = tf.placeholder(tf.string, shape=(), name='output_file')
         write_image = tf.write_file(output_file, img)
-    
+
+
+MODEL="/home/avila/model.cpkt"
 with tf.Session() as sess:
 
+    var_list = [str(x) for x in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
+    
+    print("\n".join(var_list))
     
     #init.run()
     try:
-        saver.restore(sess, "/home/avila/model.cpkt")
+        saver.restore(sess, MODEL)
         print("restored session")
     except:       
         print("start session from scratch")
@@ -251,12 +236,12 @@ with tf.Session() as sess:
                 print("New train epoch = %i, count = %i" % (epoch, batch_count))
                 val = sess.run([optimiser, loss], feed_dict={is_training:True, handle:training_handle})
                 total_loss = total_loss + val[1]
-                print("loss %f" % val[1])
+                print("loss %s" % str(val[1]))
                 
         except tf.errors.OutOfRangeError:
             pass
         
-        saver.save(sess, "/home/avila/model.cpkt")
+        saver.save(sess, MODEL)
                 
         print("New eval " +str(epoch) + " total loss " + str(total_loss))
         
