@@ -17,7 +17,7 @@ from tensorflow.python import debug as tf_debug
 tf.logging.set_verbosity(tf.logging.INFO)
 
 n_epochs = 1000
-batch_size = 2
+batch_size = 6
 learning_rate = 0.0001 
 width=800
 height=600
@@ -206,9 +206,12 @@ with tf.name_scope("to_image"):
         output_file = tf.placeholder(tf.string, shape=(), name='output_file')
         write_image = tf.write_file(output_file, img)
 
+config = tf.ConfigProto(
+        device_count = {'GPU': 0}
+    )
 
 MODEL="/home/avila/model.cpkt"
-with tf.Session() as sess:
+with tf.Session(config=config) as sess:
 
     var_list = [str(x) for x in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
     
