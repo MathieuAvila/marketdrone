@@ -231,9 +231,12 @@ with tf.name_scope("performance"):
      diff_0 = reduced_sum /sum_inactive
      performance = diff_1 + diff_0
 
+config = tf.ConfigProto(
+        device_count = {'GPU': 0}
+    )
 
 MODEL="/home/avila/model-6.cpkt"
-with tf.Session() as sess:
+with tf.Session(config=config) as sess:
 
     #var_list = [str(x) for x in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
     #print("\n".join(var_list))
