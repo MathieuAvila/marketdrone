@@ -14,6 +14,8 @@ from tensorflow.contrib.layers import dropout
 
 from tensorflow.python import debug as tf_debug
 
+from datetime import datetime
+
 tf.logging.set_verbosity(tf.logging.INFO)
 
 n_epochs = 1000
@@ -61,9 +63,9 @@ for file in glob.glob("/home/avila/DATA/DATA_REF_RESCALED/*.jpg"):
     #print(label)
     sources_label.append(label)
     
-    #count = count+1
-    #if count == batch_size*2:
-        #break
+    count = count+1
+    if count == batch_size*2:
+        break
 
 # A vector of sources.
 image_sources = tf.constant(sources)
@@ -195,7 +197,6 @@ init = tf.global_variables_initializer()
 
 saver = tf.train.Saver()
 
-
 with tf.name_scope("to_image"):
         image = tf.squeeze(result)
         target = tf.squeeze(y)
@@ -235,7 +236,21 @@ config = tf.ConfigProto(
         device_count = {'GPU': 0}
     )
 
-MODEL="/home/avila/model-6.cpkt"
+MODEL_NUMBER=6
+MODEL="/home/avila/MODEL/model-{}.cpkt".format(MODEL_NUMBER)
+LOG_DIR = "/home/avila/MODEL/LOG-{}/".format(MODEL_NUMBER)
+STEP_FILE = LOG_DIR + '/current_step.txt'
+file_writer = tf.summary.FileWriter(LOG_DIR, tf.get_default_graph())
+CURRENT_STEP=0
+try:
+    with open(STEP_FILE, 'r') as f:
+        CURRENT_STEP = int(f.read())
+        f.close()
+    print("Current step set to " + str(CURRENT_STEP))
+except OSError as e:
+    print("No current step, reset to 0")
+    pass
+
 with tf.Session(config=config) as sess:
 
     #var_list = [str(x) for x in tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES)]
@@ -257,24 +272,27 @@ with tf.Session(config=config) as sess:
         print("Range %s" % str(epoch))
         
         sess.run(training_init_op)
-        total_loss = 0
+        run_performance = 0
         try:
             batch_count = 0
             while True:
                 batch_count = batch_count + 1
                 print("New train epoch = %i, count = %i" % (epoch, batch_count))
                 val = sess.run([optimiser, performance], feed_dict={is_training:True, handle:training_handle})
-                total_loss = total_loss + val[1]
-                print("loss %s" % str(val[1]))
-                
+                run_performance = run_performance + val[1]
+                print("performance %s" % str(val[1]))
+
         except tf.errors.OutOfRangeError:
             pass
-        
+
+        run_performance = run_performance / (batch_count*batch_size)
+
         saver.save(sess, MODEL)
                 
-        print("New eval " +str(epoch) + " total loss " + str(total_loss))
+        print("New eval " +str(epoch) + " total run_performance " + str(run_performance))
         
         count=0
+        total_eval = 0
         for file in glob.glob("/home/avila/DATA/DATA_EVAL_RESCALED/*.jpg"):
             file=file.replace("/home/avila/DATA/DATA_EVAL_RESCALED/", "")
             #print(file)
@@ -284,7 +302,28 @@ with tf.Session(config=config) as sess:
                                                output_file:"/home/avila/RESULT/" + file, 
                                                handle:eval_handle})
             print("performance " + str(output[1]))
-            
+            total_eval = total_eval + output[1]
             count = count + 1
             if count == 5:
                 break
+
+        total_eval = total_eval / 5
+
+        summary_perf = tf.Summary(value=[
+            tf.Summary.Value(tag="performance", simple_value=run_performance),
+            tf.Summary.Value(tag="evaluation", simple_value=total_eval)
+            ])
+        file_writer.add_summary(summary_perf, CURRENT_STEP)
+
+        file_writer.flush()
+
+        CURRENT_STEP = CURRENT_STEP + 1
+
+        try:
+            with open(STEP_FILE, 'w') as f:
+                f.write('%d' % CURRENT_STEP)
+                f.close()
+            print("Current step saved to " + str(CURRENT_STEP))
+        except OSError as e:
+            print("Enable to save current step " + str(e))
+            pass
