@@ -120,7 +120,7 @@ def create_new_conv_layer(input_data,
 
     # initialise weights and bias for the filter
     weights = tf.Variable(tf.truncated_normal(conv_filt_shape, stddev=0.1), name=name+'_W')
-    bias = tf.Variable(tf.truncated_normal([num_filters]), name=name+'_b')
+    bias = tf.Variable(tf.truncated_normal([num_filters], mean=-1.0), name=name+'_b')
     # setup the convolutional layer operation
     out_layer = tf.nn.conv2d(input_data, weights, strides, padding='SAME')
     #out_layer = tf.Print(out_layer, data=[tf.shape(out_layer)], message="out_layer")
