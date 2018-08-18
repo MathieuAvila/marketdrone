@@ -42,6 +42,7 @@ def _parse_function(filename, label):
   reshaped_label_decoded = reshaped_label_decoded / 255 
 
   reshaped_label_decoded_reduced = tf.reduce_sum(reshaped_label_decoded, 2)
+  reshaped_label_decoded_reduced = ((tf.sign(reshaped_label_decoded_reduced - 0.5))+1.0)/2.0
 
   #my_max = tf.reduce_max(reshaped_label_decoded)
   #my_min = tf.reduce_min(reshaped_label_decoded)
@@ -64,8 +65,8 @@ for file in glob.glob("/home/avila/DATA/DATA_REF_RESCALED/*.jpg"):
     sources_label.append(label)
     
     count = count+1
-    if count == batch_size*2:
-        break
+    #if count == batch_size*2:
+    #    break
 
 # A vector of sources.
 image_sources = tf.constant(sources)
@@ -73,9 +74,9 @@ image_sources = tf.constant(sources)
 image_labels = tf.constant(sources_label)
 
 dataset_train = tf.data.Dataset.from_tensor_slices((image_sources, image_labels))
-dataset_train = dataset_train.prefetch(buffer_size = 1000*batch_size)
 dataset_train = dataset_train.shuffle(buffer_size= 1000*batch_size)
-dataset_train = dataset_train.map(_parse_function)
+dataset_train = dataset_train.prefetch(buffer_size = batch_size)
+dataset_train = dataset_train.map(_parse_function, num_parallel_calls=6)
 dataset_train = dataset_train.batch(batch_size)
 #dataset_train = dataset_train.repeat(5)
 iterator_train = tf.data.Iterator.from_structure(
@@ -122,7 +123,7 @@ def create_new_conv_layer(input_data,
 
     # initialise weights and bias for the filter
     weights = tf.Variable(tf.truncated_normal(conv_filt_shape, stddev=0.1), name=name+'_W')
-    bias = tf.Variable(tf.truncated_normal([num_filters], mean=-1.0), name=name+'_b')
+    bias = tf.Variable(tf.truncated_normal([num_filters], mean=-0.1), name=name+'_b')
     # setup the convolutional layer operation
     out_layer = tf.nn.conv2d(input_data, weights, strides, padding='SAME')
     #out_layer = tf.Print(out_layer, data=[tf.shape(out_layer)], message="out_layer")
@@ -262,7 +263,7 @@ with tf.Session(config=config) as sess:
         #saver.restore(sess, "/home/avila/model.cpkt")
         print("restored session")
     except:       
-        print("not start session from scratch")
+        print("start session from scratch")
         init.run()
     
     training_handle = sess.run(iterator_train.string_handle())
@@ -304,10 +305,10 @@ with tf.Session(config=config) as sess:
             print("performance " + str(output[1]))
             total_eval = total_eval + output[1]
             count = count + 1
-            if count == 5:
-                break
+            #if count > 5:
+            #    break
 
-        total_eval = total_eval / 5
+        total_eval = total_eval / count
 
         summary_perf = tf.Summary(value=[
             tf.Summary.Value(tag="performance", simple_value=run_performance),
