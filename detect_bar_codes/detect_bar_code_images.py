@@ -16,12 +16,12 @@ class detect_bar_code_images:
   
         reshaped_image_decoded = tf.cast(image_decoded, tf.float32)
         reshaped_image_decoded = reshaped_image_decoded / 256
-        _rgb_to_yuv_kernel = [[0.299, -0.14714119, 0.61497538], 
-                             [0.587, -0.28886916, -0.51496512],
-                             [0.114, 0.43601035, -0.10001026]]
-        kernel = ops.convert_to_tensor(_rgb_to_yuv_kernel, dtype=reshaped_image_decoded.dtype, name='kernel')
-        image_decoded_yuv = math_ops.tensordot(reshaped_image_decoded, kernel, axes=[[2], [0]])
-        return image_decoded_yuv
+        #_rgb_to_yuv_kernel = [[0.299, -0.14714119, 0.61497538], 
+        #                     [0.587, -0.28886916, -0.51496512],
+        #                     [0.114, 0.43601035, -0.10001026]]
+        #kernel = ops.convert_to_tensor(_rgb_to_yuv_kernel, dtype=reshaped_image_decoded.dtype, name='kernel')
+        #image_decoded_yuv = math_ops.tensordot(reshaped_image_decoded, kernel, axes=[[2], [0]])
+        return reshaped_image_decoded
   
     def read_label_image(this, label):
         #label = tf.Print(label, data=[label], message="label")

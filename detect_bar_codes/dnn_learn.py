@@ -42,6 +42,8 @@ def _parse_function(filename, label, org_x, org_y, end_x, end_y, gamma):
     if end_x != 0:
         source_cropped = images.crop_to(source, org_y, org_x, end_y, end_x)
         source_expanded_shrink = images.resize_to(source, [600,800])
+        
+        source_expanded_shrink_brightness = tf.image.adjust_brightness(source_expanded_shrink, 0.1)
     
         source = tf.Print(source, data=[filename], message="MODIFIED IMAGE")
     
@@ -55,7 +57,7 @@ def _parse_function(filename, label, org_x, org_y, end_x, end_y, gamma):
         label_expanded_shrink_resized = tf.squeeze(label_expanded_shrink, [2])
         #label_expanded_shrink_resized = tf.Print(label_expanded_shrink_resized, data=[tf.shape(source_cropped)], 
         #                                         message="label_expanded_shrink_resized ")
-        return source_expanded_shrink, result_label 
+        return source_expanded_shrink_brightness, result_label 
     else:
         return source, result_label
 
@@ -71,15 +73,14 @@ list_end_x = []
 list_end_y = []
 list_gamma = []
 #os.chdir("/home/avila/DATA_REF/")
-count = 0
+sample_count = 0
 for file in glob.glob("/home/avila/DATA/DATA_REF_RESCALED/*.jpg"):
     print(file)
     label = file.replace("REF", "REF_LABEL")
     #print(label)
     
-    count = count+1
-    #if count == batch_size*2:
-    #    break
+    sample_count = sample_count+1
+    
     for i in range(IMAGE_CLONE_NR):
         sources.append(file)
         sources_label.append(label)
@@ -178,9 +179,7 @@ with tf.name_scope("to_image"):
         source_dim3 = tf.nn.max_pool(X, [1,10,10,1], strides=[1,10,10,1], padding="VALID")
         source_dim3 = tf.squeeze(source_dim3)
         
-        image_decoded_rgb = images.convert_image_yuv_to_rgb(source_dim3)
-        
-        image_concat2 = tf.concat([image_decoded_rgb,image_expand3_3], 1)
+        image_concat2 = tf.concat([source_dim3,image_expand3_3], 1)
 
         image_expand3_3 = image_concat2 * 255
         raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
@@ -200,7 +199,17 @@ with tf.name_scope("performance"):
      
     reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)))
     diff_0 = reduced_sum /sum_inactive
+    
     performance = diff_1 + diff_0
+    performance = tf.Print(performance, data=["pixel_count ", pixel_count, 
+                                              " sum_active ", sum_active,
+                                              " sum_inactive ", sum_inactive,
+                                              " sum_diff_1 ", sum_diff_1,
+                                              " diff_1 ", diff_1,
+                                              " reduced_sum ", reduced_sum,
+                                              " diff_0 ", diff_0,
+                                              " performance ", performance
+                                              ], message="performance ")
 
 config = tf.ConfigProto(
         device_count = {'GPU': 0}
@@ -253,7 +262,7 @@ with tf.Session(config=config) as sess:
         except tf.errors.OutOfRangeError:
             pass
 
-        run_performance = run_performance / (batch_count*batch_size)
+        run_performance = run_performance / sample_count
 
         saver.save(sess, MODEL)
                 
@@ -276,10 +285,11 @@ with tf.Session(config=config) as sess:
             #    break
 
         total_eval = total_eval / count
-
+        print("overall learn error  " + str(run_performance))
+        print("overall test error  " + str(total_eval))
         summary_perf = tf.Summary(value=[
-            tf.Summary.Value(tag="performance", simple_value=run_performance),
-            tf.Summary.Value(tag="evaluation", simple_value=total_eval)
+            tf.Summary.Value(tag="learn_error", simple_value=run_performance),
+            tf.Summary.Value(tag="test_error", simple_value=total_eval)
             ])
         file_writer.add_summary(summary_perf, CURRENT_STEP)
 

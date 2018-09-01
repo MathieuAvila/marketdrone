@@ -91,9 +91,7 @@ with tf.name_scope("to_image"):
         image_expand3_3 = tf.tile(image_re_expand3, [1, 1, 3])
         source_dim3 = tf.nn.max_pool(X, [1,10,10,1], strides=[1,10,10,1], padding="VALID")
         source_dim3 = tf.squeeze(source_dim3)
-        kernel_back = ops.convert_to_tensor(_yuv_to_rgb_kernel, dtype=source_dim3.dtype, name='kernel_back')
-        image_decoded_rgb = math_ops.tensordot(source_dim3, kernel_back, axes=[[2], [0]])
-        image_concat2 = tf.concat([image_decoded_rgb,image_expand3_3], 1)
+        image_concat2 = tf.concat([source_dim3,image_expand3_3], 1)
         image_expand3_3 = image_concat2 * 255
         raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
         img = tf.image.encode_jpeg(raw_uint8)
