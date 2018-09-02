@@ -19,7 +19,7 @@ from datetime import datetime
 from detect_bar_code_ddn import detect_bar_code_ddn
 from detect_bar_code_images import detect_bar_code_images
 
-from detect_bar_code_constants import width,height,MODEL,MODEL_NUMBER
+from detect_bar_code_constants import target_height, target_width, width,height,MODEL,MODEL_NUMBER
  
 tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -31,27 +31,21 @@ import glob, os
 
 iterator_eval = tf.data.Iterator.from_structure(
         (tf.float32, tf.float32),
-        (tf.TensorShape((None, width, height, 3)), tf.TensorShape((None, width, height)) )
+        (tf.TensorShape((None, height, width, 3)), tf.TensorShape((None, target_height, target_width)) )
     )
 
 def eval_op_from_file(filename):
-    image_sources_eval = [filename]
-    image_labels_eval = ["/home/avila/DATA/void_target.jpg"]
-    dataset_eval = tf.data.Dataset.from_tensor_slices((image_sources_eval, image_labels_eval))
-    dataset_eval = dataset_eval.map(_parse_function)
-    dataset_eval = dataset_eval.batch(1)
+    source = images.read_source_image(filename)
+    source_expand = tf.expand_dims(source, 0)
+    result_label = images.read_label_image("/home/avila/DATA/void_target.jpg")
+    result_label_expand = tf.expand_dims(result_label, 0)
+    dataset_src = tf.data.Dataset.from_tensors(source_expand)
+    dataset_lbl = tf.data.Dataset.from_tensors(result_label_expand)
+    dataset_eval = tf.data.Dataset.zip((dataset_src, dataset_lbl))
     eval_init_op = iterator_eval.make_initializer(dataset_eval)
     return eval_init_op
 
 is_training = tf.placeholder(tf.bool, shape=(), name='is_training')
-
-bn_params = {
-    'is_training' : is_training,
-    'decay' : 0.999,
-    'updates_collections' : None,
-    'fused':True
-    }
-
 
 def _parse_function(filename, label):
     
@@ -65,7 +59,7 @@ with tf.name_scope("dnn"):
     handle = tf.placeholder(tf.string, shape=[])
     iterator = tf.data.Iterator.from_string_handle(
                     handle, (tf.float32, tf.float32),
-                    (tf.TensorShape((None, width, height, 3)), tf.TensorShape((None, width, height)) )
+                    (tf.TensorShape((None, height, width, 3)), tf.TensorShape((None, target_height, target_width)) )
                     )
     
     X,y = iterator.get_next()
@@ -75,23 +69,26 @@ init = tf.global_variables_initializer()
 
 saver = tf.train.Saver()
 
-_yuv_to_rgb_kernel = [[1, 1, 1], [0, -0.394642334, 2.03206185],
-                      [1.13988303, -0.58062185, 0]]
-
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
 
 
 with tf.name_scope("to_image"):
         image = tf.squeeze(result)
+        target = tf.squeeze(y)
         #image = tf.Print(image, data=[tf.shape(image), tf.shape(target), tf.shape(result), tf.shape(y)], message="image ")
         image_step = (tf.sign(image - 0.5)+1)/2
-        image_concat = tf.concat([image, image_step], 1)
+
+        image_concat = tf.concat([target,image, image_step], 1)
+        
         image_re_expand3 = tf.expand_dims(image_concat, 2)
         image_expand3_3 = tf.tile(image_re_expand3, [1, 1, 3])
+
         source_dim3 = tf.nn.max_pool(X, [1,10,10,1], strides=[1,10,10,1], padding="VALID")
         source_dim3 = tf.squeeze(source_dim3)
+        
         image_concat2 = tf.concat([source_dim3,image_expand3_3], 1)
+
         image_expand3_3 = image_concat2 * 255
         raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
         img = tf.image.encode_jpeg(raw_uint8)

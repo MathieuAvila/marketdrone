@@ -11,7 +11,6 @@ class detect_bar_code_images:
         #filename = tf.Print(filename, data=[filename], message="filename")
         image_string = tf.read_file(filename)
         image_decoded = tf.image.decode_image(image_string)
-        print(image_decoded)
         ndims = image_decoded.get_shape().ndims
   
         reshaped_image_decoded = tf.cast(image_decoded, tf.float32)

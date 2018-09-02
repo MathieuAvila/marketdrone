@@ -26,8 +26,8 @@ import random
 tf.logging.set_verbosity(tf.logging.INFO)
 
 n_epochs = 10000
-batch_size = 8
-learning_rate = 0.0005
+batch_size = 16
+learning_rate = 0.005
 
 # Reads an image from a file, decodes it into a dense tensor, and resizes it
 # to a fixed shape.
@@ -37,15 +37,15 @@ def _parse_function(filename, label, org_x, org_y, end_x, end_y, gamma):
     
     source = images.read_source_image(filename)
     result_label = images.read_label_image(label)
-    source = tf.Print(source, data=[filename, org_x, org_y, end_x, end_y, gamma], message="load source ")
-        
+    #source = tf.Print(source, data=[filename, org_x, org_y, end_x, end_y, gamma], message="load source ")
+
     if end_x != 0:
         source_cropped = images.crop_to(source, org_y, org_x, end_y, end_x)
         source_expanded_shrink = images.resize_to(source, [600,800])
         
         source_expanded_shrink_brightness = tf.image.adjust_brightness(source_expanded_shrink, 0.1)
     
-        source = tf.Print(source, data=[filename], message="MODIFIED IMAGE")
+        #source = tf.Print(source, data=[gamma], message="COUNTER")
     
         label_exp = tf.expand_dims(result_label, 2)
         label_cropped = images.crop_to(label_exp,
@@ -60,9 +60,6 @@ def _parse_function(filename, label, org_x, org_y, end_x, end_y, gamma):
         return source_expanded_shrink_brightness, result_label 
     else:
         return source, result_label
-
-def _parse_function_eval(filename, label):
-    return _parse_function(filename, label, 0,0,0,0,0)
 
 import glob, os
 sources = []
@@ -84,15 +81,15 @@ for file in glob.glob("/home/avila/DATA/DATA_REF_RESCALED/*.jpg"):
     for i in range(IMAGE_CLONE_NR):
         sources.append(file)
         sources_label.append(label)
-        offset_x = random.random()*10
-        offset_y = random.random()*10
-        width_x = width - offset_x - random.random()*10
-        width_y = height - offset_y -random.random()*10
+        offset_x = random.random()*20
+        offset_y = random.random()*20
+        width_x = width - offset_x - random.random()*20
+        width_y = height - offset_y -random.random()*20
         list_org_x.append(int(offset_x))
         list_org_y.append(int(offset_y))
         list_end_x.append(int(width_x))
         list_end_y.append(int(width_y))
-        list_gamma.append(random.random())
+        list_gamma.append(0)
 
 # A vector of sources.
 image_sources = tf.constant(sources)
@@ -117,25 +114,24 @@ iterator_eval = tf.data.Iterator.from_structure(
     )
 
 def eval_op_from_file(filename):
-    image_sources_eval = ["/home/avila/DATA/DATA_EVAL_RESCALED/" + filename]
-    image_labels_eval = ["/home/avila/DATA/DATA_EVAL_LABEL_RESCALED/" + filename]
-    #image_labels_eval = ["/home/avila/DATA/void_target.jpg"]
-    dataset_eval = tf.data.Dataset.from_tensor_slices((image_sources_eval, image_labels_eval))
-    dataset_eval = dataset_eval.map(_parse_function_eval)
-    dataset_eval = dataset_eval.batch(1)
+    source = images.read_source_image("/home/avila/DATA/DATA_EVAL_RESCALED/" + filename)
+    source_expand = tf.expand_dims(source, 0)
+    result_label = images.read_label_image("/home/avila/DATA/DATA_EVAL_LABEL_RESCALED/" + filename)
+    result_label_expand = tf.expand_dims(result_label, 0)
+    dataset_src = tf.data.Dataset.from_tensors(source_expand)
+    dataset_lbl = tf.data.Dataset.from_tensors(result_label_expand)
+    dataset_eval = tf.data.Dataset.zip((dataset_src, dataset_lbl))
     eval_init_op = iterator_eval.make_initializer(dataset_eval)
     return eval_init_op
 
 is_training = tf.placeholder(tf.bool, shape=(), name='is_training')
 
-bn_params = {
-    'is_training' : is_training,
-    'decay' : 0.999,
-    'updates_collections' : None,
-    'fused':True
-    }
-
-
+#bn_params = {
+#    'is_training' : is_training,
+#    'decay' : 0.999,
+#    'updates_collections' : None,
+#    'fused':True
+#    }
 
 my_dnn = detect_bar_code_ddn()
  
@@ -155,11 +151,26 @@ with tf.name_scope("loss"):
     loss = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=result, name="loss")
     loss2 = tf.reduce_sum(abs(loss))
 
+with tf.name_scope("performance"):
+
+    pixel_count = tf.reduce_prod(tf.shape(y))
+    pixel_count = tf.cast(pixel_count, tf.float32)
+    sum_active = tf.reduce_sum(y)
+    sum_inactive = pixel_count - sum_active
+
+    sum_diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(result, y)))
+    diff_1 = sum_diff_1/sum_active
+     
+    reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)))
+    diff_0 = reduced_sum /sum_inactive
+    
+    performance = diff_1 + diff_0
+
 with tf.name_scope("learn"):
     # add an optimiser
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        optimiser = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
+        optimiser = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(performance)
 
 init = tf.global_variables_initializer()
 
@@ -187,30 +198,6 @@ with tf.name_scope("to_image"):
         output_file = tf.placeholder(tf.string, shape=(), name='output_file')
         write_image = tf.write_file(output_file, img)
 
-with tf.name_scope("performance"):
-
-    pixel_count = tf.reduce_prod(tf.shape(y))
-    pixel_count = tf.cast(pixel_count, tf.float32)
-    sum_active = tf.reduce_sum(y)
-    sum_inactive = pixel_count - sum_active
-
-    sum_diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(result, y)))
-    diff_1 = sum_diff_1/sum_active
-     
-    reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)))
-    diff_0 = reduced_sum /sum_inactive
-    
-    performance = diff_1 + diff_0
-    performance = tf.Print(performance, data=["pixel_count ", pixel_count, 
-                                              " sum_active ", sum_active,
-                                              " sum_inactive ", sum_inactive,
-                                              " sum_diff_1 ", sum_diff_1,
-                                              " diff_1 ", diff_1,
-                                              " reduced_sum ", reduced_sum,
-                                              " diff_0 ", diff_0,
-                                              " performance ", performance
-                                              ], message="performance ")
-
 config = tf.ConfigProto(
         device_count = {'GPU': 0}
     )
@@ -221,6 +208,7 @@ file_writer = tf.summary.FileWriter(LOG_DIR, tf.get_default_graph())
 CURRENT_STEP=0
 try:
     with open(STEP_FILE, 'r') as f:
+        print("Found file step " + STEP_FILE)
         CURRENT_STEP = int(f.read())
         f.close()
     print("Current step set to " + str(CURRENT_STEP))
@@ -262,7 +250,7 @@ with tf.Session(config=config) as sess:
         except tf.errors.OutOfRangeError:
             pass
 
-        run_performance = run_performance / sample_count
+        run_performance = run_performance / batch_count
 
         saver.save(sess, MODEL)
                 
@@ -272,7 +260,6 @@ with tf.Session(config=config) as sess:
         total_eval = 0
         for file in glob.glob("/home/avila/DATA/DATA_EVAL_RESCALED/*.jpg"):
             file=file.replace("/home/avila/DATA/DATA_EVAL_RESCALED/", "")
-            #print(file)
             eval_init_op = eval_op_from_file(file)
             sess.run(eval_init_op)        
             output = sess.run([write_image, performance], feed_dict={is_training:False, 
