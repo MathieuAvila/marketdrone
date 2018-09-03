@@ -63,7 +63,7 @@ with tf.name_scope("dnn"):
                     )
     
     X,y = iterator.get_next()
-    result = my_dnn.detect_bar_code_ddn(X, is_training)
+    (dnn_max, result)  = my_dnn.detect_bar_code_ddn(X, is_training)
 
 init = tf.global_variables_initializer()
 

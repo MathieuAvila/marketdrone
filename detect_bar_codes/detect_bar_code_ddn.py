@@ -73,4 +73,4 @@ class detect_bar_code_ddn:
 
             result = tf.nn.sigmoid(max_pool_2)
 
-            return result
+            return (max_pool_2, result)

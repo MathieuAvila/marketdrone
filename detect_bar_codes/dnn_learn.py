@@ -144,12 +144,17 @@ with tf.name_scope("dnn"):
                     )
     
     X,y = iterator.get_next()
-    result = my_dnn.detect_bar_code_ddn(X, is_training)
+    (dnn_max, dnn_result) = my_dnn.detect_bar_code_ddn(X, is_training)
                 
                 
 with tf.name_scope("loss"):
-    loss = tf.nn.softmax_cross_entropy_with_logits(labels=y, logits=result, name="loss")
-    loss2 = tf.reduce_sum(abs(loss))
+    dnn_result_flat = tf.reshape(dnn_max, [-1])
+    dnn_result_categories = tf.expand_dims(dnn_result_flat, 1)
+
+    y_flat = tf.reshape(y, [-1])
+    y_categories = tf.expand_dims(y_flat, 1)
+
+    loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=y_categories, logits=dnn_result_categories, name="loss")
 
 with tf.name_scope("performance"):
 
@@ -158,26 +163,26 @@ with tf.name_scope("performance"):
     sum_active = tf.reduce_sum(y)
     sum_inactive = pixel_count - sum_active
 
-    sum_diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(result, y)))
+    sum_diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(dnn_result, y)))
     diff_1 = sum_diff_1/sum_active
-     
-    reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(result, 1.0-y)))
+
+    reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(dnn_result, 1.0-y)))
     diff_0 = reduced_sum /sum_inactive
-    
+
     performance = diff_1 + diff_0
 
 with tf.name_scope("learn"):
     # add an optimiser
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
-        optimiser = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(performance)
+        optimiser = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
 
 init = tf.global_variables_initializer()
 
 saver = tf.train.Saver()
 
 with tf.name_scope("to_image"):
-        image = tf.squeeze(result)
+        image = tf.squeeze(dnn_result)
         target = tf.squeeze(y)
         #image = tf.Print(image, data=[tf.shape(image), tf.shape(target), tf.shape(result), tf.shape(y)], message="image ")
         image_step = (tf.sign(image - 0.5)+1)/2
