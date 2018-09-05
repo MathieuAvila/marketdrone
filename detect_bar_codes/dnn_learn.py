@@ -34,19 +34,19 @@ learning_rate = 0.005
 images = detect_bar_code_images()
 
 def _parse_function(filename, label, org_x, org_y, end_x, end_y, gamma):
-    
+
     source = images.read_source_image(filename)
     result_label = images.read_label_image(label)
-    #source = tf.Print(source, data=[filename, org_x, org_y, end_x, end_y, gamma], message="load source ")
+    source = tf.Print(source, data=[filename, org_x, org_y, end_x, end_y, gamma], message="load source ")
 
     if end_x != 0:
         source_cropped = images.crop_to(source, org_y, org_x, end_y, end_x)
         source_expanded_shrink = images.resize_to(source, [600,800])
-        
         source_expanded_shrink_brightness = tf.image.adjust_brightness(source_expanded_shrink, 0.1)
-    
+        source_expanded_shrink_brightness_rotated = tf.contrib.image.rotate(source_expanded_shrink_brightness, gamma, interpolation='BILINEAR')
+
         #source = tf.Print(source, data=[gamma], message="COUNTER")
-    
+
         label_exp = tf.expand_dims(result_label, 2)
         label_cropped = images.crop_to(label_exp,
                             tf.to_int32(org_y / 10), 
@@ -55,9 +55,11 @@ def _parse_function(filename, label, org_x, org_y, end_x, end_y, gamma):
                             tf.to_int32(end_x / 10))
         label_expanded_shrink = images.resize_to(label_cropped, [60,80])
         label_expanded_shrink_resized = tf.squeeze(label_expanded_shrink, [2])
+        label_expanded_shrink_resized_rotated = tf.contrib.image.rotate(label_expanded_shrink_resized, gamma, interpolation='NEAREST')
+
         #label_expanded_shrink_resized = tf.Print(label_expanded_shrink_resized, data=[tf.shape(source_cropped)], 
         #                                         message="label_expanded_shrink_resized ")
-        return source_expanded_shrink_brightness, result_label 
+        return source_expanded_shrink_brightness_rotated, label_expanded_shrink_resized_rotated
     else:
         return source, result_label
 
@@ -89,7 +91,7 @@ for file in glob.glob("/home/avila/DATA/DATA_REF_RESCALED/*.jpg"):
         list_org_y.append(int(offset_y))
         list_end_x.append(int(width_x))
         list_end_y.append(int(width_y))
-        list_gamma.append(0)
+        list_gamma.append( (random.random()-0.5)*3.14/32 )
 
 # A vector of sources.
 image_sources = tf.constant(sources)
@@ -158,15 +160,17 @@ with tf.name_scope("loss"):
 
 with tf.name_scope("performance"):
 
+    image_step = (tf.sign(dnn_result - 0.5)+1)/2
+
     pixel_count = tf.reduce_prod(tf.shape(y))
     pixel_count = tf.cast(pixel_count, tf.float32)
     sum_active = tf.reduce_sum(y)
     sum_inactive = pixel_count - sum_active
 
-    sum_diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(dnn_result, y)))
+    sum_diff_1 = tf.reduce_sum(tf.abs(y-tf.multiply(image_step, y)))
     diff_1 = sum_diff_1/sum_active
 
-    reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(dnn_result, 1.0-y)))
+    reduced_sum = tf.reduce_sum(tf.abs(tf.multiply(image_step, 1.0-y)))
     diff_0 = reduced_sum /sum_inactive
 
     performance = diff_1 + diff_0
@@ -182,20 +186,19 @@ init = tf.global_variables_initializer()
 saver = tf.train.Saver()
 
 with tf.name_scope("to_image"):
-        image = tf.squeeze(dnn_result)
+        image = tf.squeeze(image_step)
         target = tf.squeeze(y)
         #image = tf.Print(image, data=[tf.shape(image), tf.shape(target), tf.shape(result), tf.shape(y)], message="image ")
-        image_step = (tf.sign(image - 0.5)+1)/2
-
-        image_concat = tf.concat([target,image, image_step], 1)
         
-        image_re_expand3 = tf.expand_dims(image_concat, 2)
-        image_expand3_3 = tf.tile(image_re_expand3, [1, 1, 3])
+        image_expand = tf.expand_dims(image, 2)
+        target_expand = tf.expand_dims(target, 2)
+
+        image_concat = tf.concat([image_expand, target_expand, (tf.sign(image_expand + target_expand - 1.5)+1)/2], 2)
 
         source_dim3 = tf.nn.max_pool(X, [1,10,10,1], strides=[1,10,10,1], padding="VALID")
         source_dim3 = tf.squeeze(source_dim3)
         
-        image_concat2 = tf.concat([source_dim3,image_expand3_3], 1)
+        image_concat2 = tf.concat([source_dim3,image_concat], 1)
 
         image_expand3_3 = image_concat2 * 255
         raw_uint8 = tf.cast(image_expand3_3, dtype=tf.uint8)
